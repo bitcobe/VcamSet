@@ -15,6 +15,9 @@ import android.widget.Toast;
 
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class MainActivity extends Activity {
 
@@ -43,7 +46,6 @@ public class MainActivity extends Activity {
         loadSavedPath();
         updateUIState();
 
-        // Dugme "Load" otvara birač MP4 fajlova
         btnLoad.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -51,7 +53,6 @@ public class MainActivity extends Activity {
             }
         });
 
-        // Dugme za postavljanje ciljnog Vcam foldera
         btnSetTarget.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -80,9 +81,9 @@ public class MainActivity extends Activity {
         boolean isReady = !targetPath.isEmpty();
         btnLoad.setEnabled(isReady);
         if (isReady) {
-            btnLoad.setBackgroundColor(0xFF2196F3); // Plava boja kada je aktivno
+            btnLoad.setBackgroundColor(0xFF2196F3);
         } else {
-            btnLoad.setBackgroundColor(0xFFBDBDBD); // Siva boja kada je onemogućeno
+            btnLoad.setBackgroundColor(0xFFBDBDBD);
         }
     }
 
@@ -93,7 +94,7 @@ public class MainActivity extends Activity {
         try {
             startActivityForResult(Intent.createChooser(intent, "Izaberi Vcam target folder"), requestCode);
         } catch (Exception e) {
-            Toast.makeText(this, "Greška pri pokretanju birača: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Greška: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -125,40 +126,11 @@ public class MainActivity extends Activity {
                     savePath();
                     updateUIState();
                 } else if (requestCode == REQUEST_CODE_SELECT_MP4) {
-                    // Prikazujemo pravu sličicu (frejm) izabranog videa
-                    showVideoPreview(uri);
-                    // Vršimo kopiranje u virtual.mp4 preko roota
                     processAndReplaceVcamFile(uri);
                 }
             }
         }
         super.onActivityResult(requestCode, resultCode, data);
-    }
-
-    private void showVideoPreview(Uri sourceUri) {
-        try {
-            String sourceFilePath = getRealFilePathFromUri(sourceUri);
-            if (sourceFilePath != null && new File(sourceFilePath).exists()) {
-                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-                retriever.setDataSource(sourceFilePath);
-                // Izvlačimo frejm sa početka videa
-                Bitmap bitmap = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
-                retriever.release();
-
-                if (bitmap != null) {
-                    ivVideoPreview.setBackgroundColor(0x00000000); // Uklanjamo pozadinu
-                    ivVideoPreview.setImageBitmap(bitmap);         // Postavljamo sliku
-                    ivVideoPreview.setVisibility(View.VISIBLE);
-                } else {
-                    ivVideoPreview.setVisibility(View.GONE);
-                    Toast.makeText(this, "Ne mogu da učitam frejm iz videa", Toast.LENGTH_SHORT).show();
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            ivVideoPreview.setVisibility(View.GONE);
-            Toast.makeText(this, "Greška preview-a: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
     }
 
     private void processAndReplaceVcamFile(Uri sourceUri) {
@@ -168,21 +140,31 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            String sourceFilePath = getRealFilePathFromUri(sourceUri);
-            if (sourceFilePath == null || !new File(sourceFilePath).exists()) {
-                Toast.makeText(this, "Ne mogu da pronađem izabrani MP4 fajl!", Toast.LENGTH_SHORT).show();
-                return;
-            }
+            // Prvo kopiramo izabrani fajl u privremeni lokalni keš fajl aplikacije da izbegnemo URI restrikcije
+            File cacheFile = new File(getCacheDir(), "temp_selected.mp4");
+            InputStream inputStream = getContentResolver().openInputStream(sourceUri);
+            OutputStream outputStream = new FileOutputStream(cacheFile);
 
+            byte[] buffer = new byte[4096];
+            int length;
+            while ((length = inputStream.read(buffer)) > 0) {
+                outputStream.write(buffer, 0, length);
+            }
+            outputStream.flush();
+            outputStream.close();
+            inputStream.close();
+
+            // Generišemo preview iz lokalnog keš fajla (100% radi na svim uređajima)
+            showVideoPreviewFromCache(cacheFile);
+
+            // Sada vršimo kopiranje u krajnji target folder pod imenom virtual.mp4 preko roota
             File targetDir = new File(targetPath);
             if (!targetDir.exists()) {
                 executeRootCommand("mkdir -p '" + targetDir.getAbsolutePath() + "'");
             }
 
             File destinationFile = new File(targetDir, "virtual.mp4");
-
-            // Kopiranje fajla pod imenom virtual.mp4 preko root privilegija
-            String command = "cp -f '" + sourceFilePath + "' '" + destinationFile.getAbsolutePath() + "'";
+            String command = "cp -f '" + cacheFile.getAbsolutePath() + "' '" + destinationFile.getAbsolutePath() + "'";
             boolean success = executeRootCommand(command);
 
             if (success && destinationFile.exists()) {
@@ -193,7 +175,27 @@ public class MainActivity extends Activity {
             }
 
         } catch (Exception e) {
+            e.printStackTrace();
             Toast.makeText(this, "Greška: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void showVideoPreviewFromCache(File file) {
+        try {
+            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+            retriever.setDataSource(file.getAbsolutePath());
+            Bitmap bitmap = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+            retriever.release();
+
+            if (bitmap != null) {
+                ivVideoPreview.setImageBitmap(bitmap);
+                ivVideoPreview.setVisibility(View.VISIBLE);
+            } else {
+                ivVideoPreview.setVisibility(View.GONE);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            ivVideoPreview.setVisibility(View.GONE);
         }
     }
 
