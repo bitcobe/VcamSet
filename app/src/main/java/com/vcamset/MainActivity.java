@@ -3,6 +3,8 @@ package com.vcamset;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
@@ -123,7 +125,7 @@ public class MainActivity extends Activity {
                     savePath();
                     updateUIState();
                 } else if (requestCode == REQUEST_CODE_SELECT_MP4) {
-                    // Prikazujemo stabilnu vizuelnu potvrdu i naziv izabranog videa
+                    // Prikazujemo pravu sličicu (frejm) izabranog videa
                     showVideoPreview(uri);
                     // Vršimo kopiranje u virtual.mp4 preko roota
                     processAndReplaceVcamFile(uri);
@@ -136,16 +138,26 @@ public class MainActivity extends Activity {
     private void showVideoPreview(Uri sourceUri) {
         try {
             String sourceFilePath = getRealFilePathFromUri(sourceUri);
-            if (sourceFilePath != null) {
-                File selectedFile = new File(sourceFilePath);
-                // Postavljamo zelenu boju pozadine u ImageView-u kao vizuelnu potvrdu
-                ivVideoPreview.setBackgroundColor(0xFF4CAF50);
-                ivVideoPreview.setVisibility(View.VISIBLE);
-                Toast.makeText(this, "Izabran fajl: " + selectedFile.getName(), Toast.LENGTH_LONG).show();
+            if (sourceFilePath != null && new File(sourceFilePath).exists()) {
+                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                retriever.setDataSource(sourceFilePath);
+                // Izvlačimo frejm sa početka videa
+                Bitmap bitmap = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+                retriever.release();
+
+                if (bitmap != null) {
+                    ivVideoPreview.setBackgroundColor(0x00000000); // Uklanjamo pozadinu
+                    ivVideoPreview.setImageBitmap(bitmap);         // Postavljamo sliku
+                    ivVideoPreview.setVisibility(View.VISIBLE);
+                } else {
+                    ivVideoPreview.setVisibility(View.GONE);
+                    Toast.makeText(this, "Ne mogu da učitam frejm iz videa", Toast.LENGTH_SHORT).show();
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "Greška: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            ivVideoPreview.setVisibility(View.GONE);
+            Toast.makeText(this, "Greška preview-a: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
