@@ -16,17 +16,14 @@ import java.io.File;
 public class MainActivity extends Activity {
 
     private static final int REQUEST_CODE_SELECT_MP4 = 1001;
-    private static final int REQUEST_CODE_SELECT_SOURCE_DIR = 1002;
     private static final int REQUEST_CODE_SELECT_TARGET_DIR = 1003;
 
     private static final String PREFS_NAME = "VCamSetPrefs";
-    private static final String KEY_SOURCE_PATH = "source_path";
     private static final String KEY_TARGET_PATH = "target_path";
 
-    private Button btnLoad, btnSetSource, btnSetTarget;
-    private TextView tvSourcePath, tvTargetPath;
+    private Button btnLoad, btnSetTarget;
+    private TextView tvTargetPath;
 
-    private String sourcePath = "";
     private String targetPath = "";
 
     @Override
@@ -35,27 +32,17 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         btnLoad = (Button) findViewById(R.id.btnLoad);
-        btnSetSource = (Button) findViewById(R.id.btnSetSource);
         btnSetTarget = (Button) findViewById(R.id.btnSetTarget);
-        tvSourcePath = (TextView) findViewById(R.id.tvSourcePath);
         tvTargetPath = (TextView) findViewById(R.id.tvTargetPath);
 
-        loadSavedPaths();
+        loadSavedPath();
         updateUIState();
 
-        // Dugme "Load" otvara birač MP4 fajlova
+        // Dugme "Load" otvara birač MP4 fajlova bilo gde u sistemu
         btnLoad.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 openMp4Picker();
-            }
-        });
-
-        // Dugme za postavljanje izvornog foldera
-        btnSetSource.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                openFolderPicker(REQUEST_CODE_SELECT_SOURCE_DIR);
             }
         });
 
@@ -68,34 +55,29 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void loadSavedPaths() {
+    private void loadSavedPath() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        sourcePath = prefs.getString(KEY_SOURCE_PATH, "");
         targetPath = prefs.getString(KEY_TARGET_PATH, "");
 
-        if (!sourcePath.isEmpty()) {
-            tvSourcePath.setText("Source path: " + sourcePath);
-        }
         if (!targetPath.isEmpty()) {
             tvTargetPath.setText("Target path: " + targetPath);
         }
     }
 
-    private void savePaths() {
+    private void savePath() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
-        editor.putString(KEY_SOURCE_PATH, sourcePath);
         editor.putString(KEY_TARGET_PATH, targetPath);
         editor.commit();
     }
 
     private void updateUIState() {
-        boolean isReady = !sourcePath.isEmpty() && !targetPath.isEmpty();
+        boolean isReady = !targetPath.isEmpty();
         btnLoad.setEnabled(isReady);
         if (isReady) {
-            btnLoad.setBackgroundColor(0xFF2196F3); // Plava boja kad je aktivno
+            btnLoad.setBackgroundColor(0xFF2196F3); // Plava boja kada je aktivno
         } else {
-            btnLoad.setBackgroundColor(0xFFBDBDBD); // Siva boja kad je onemogućeno
+            btnLoad.setBackgroundColor(0xFFBDBDBD); // Siva boja kada je onemogućeno
         }
     }
 
@@ -104,7 +86,7 @@ public class MainActivity extends Activity {
         intent.setType("*/*");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         try {
-            startActivityForResult(Intent.createChooser(intent, "Izaberi folder / lokaciju"), requestCode);
+            startActivityForResult(Intent.createChooser(intent, "Izaberi Vcam target folder"), requestCode);
         } catch (Exception e) {
             Toast.makeText(this, "Greška pri pokretanju birača: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
@@ -126,18 +108,7 @@ public class MainActivity extends Activity {
         if (resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri != null) {
-                if (requestCode == REQUEST_CODE_SELECT_SOURCE_DIR) {
-                    String path = getRealFilePathFromUri(uri);
-                    if (path != null) {
-                        File f = new File(path);
-                        sourcePath = f.isDirectory() ? f.getAbsolutePath() : f.getParent();
-                    } else {
-                        sourcePath = uri.getPath();
-                    }
-                    tvSourcePath.setText("Source path: " + sourcePath);
-                    savePaths();
-                    updateUIState();
-                } else if (requestCode == REQUEST_CODE_SELECT_TARGET_DIR) {
+                if (requestCode == REQUEST_CODE_SELECT_TARGET_DIR) {
                     String path = getRealFilePathFromUri(uri);
                     if (path != null) {
                         File f = new File(path);
@@ -146,7 +117,7 @@ public class MainActivity extends Activity {
                         targetPath = uri.getPath();
                     }
                     tvTargetPath.setText("Target path: " + targetPath);
-                    savePaths();
+                    savePath();
                     updateUIState();
                 } else if (requestCode == REQUEST_CODE_SELECT_MP4) {
                     processAndReplaceVcamFile(uri);
@@ -165,7 +136,7 @@ public class MainActivity extends Activity {
 
             String sourceFilePath = getRealFilePathFromUri(sourceUri);
             if (sourceFilePath == null || !new File(sourceFilePath).exists()) {
-                Toast.makeText(this, "Ne mogu da pronađem izvorni fajl!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Ne mogu da pronađem izabrani MP4 fajl!", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -176,15 +147,15 @@ public class MainActivity extends Activity {
 
             File destinationFile = new File(targetDir, "virtual.mp4");
 
-            // Izvršavanje root kopiranja sa -f (force)
+            // Kopiranje fajla pod imenom virtual.mp4 preko root privilegija
             String command = "cp -f '" + sourceFilePath + "' '" + destinationFile.getAbsolutePath() + "'";
             boolean success = executeRootCommand(command);
 
             if (success && destinationFile.exists()) {
                 executeRootCommand("chmod 666 '" + destinationFile.getAbsolutePath() + "'");
-                Toast.makeText(this, "Uspešno zamenjen virtual.mp4 preko roota!", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Uspešno kreiran virtual.mp4 u target folderu!", Toast.LENGTH_LONG).show();
             } else {
-                Toast.makeText(this, "Greška: Root kopiranje nije uspelo.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Greška: Root kopiranje fajla nije uspelo.", Toast.LENGTH_LONG).show();
             }
 
         } catch (Exception e) {
