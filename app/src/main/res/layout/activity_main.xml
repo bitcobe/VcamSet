@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:gravity="center_horizontal">
+
+    <!-- Plavo dugme "Load" na vrhu -->
+    <Button
+        android:id="@+id/btnLoad"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="Load"
+        android:textColor="#FFFFFF"
+        android:background="#2196F3"
+        android:textSize="18sp"
+        android:enabled="false"
+        android:layout_marginBottom="32dp" />
+
+    <!-- Sekcija za Target Source (Folder odakle se bira MP4) -->
+    <Button
+        android:id="@+id/btnSetSource"
+        android:layout_width="200dp"
+        android:layout_height="45dp"
+        android:text="Set-Source"
+        android:textColor="#000000"
+        android:background="#E0E0E0"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tvSourcePath"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Source path: Not set"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:textColor="#666666"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Sekcija za Target Folder (Vcam folder gde se nalazi virtual.mp4) -->
+    <Button
+        android:id="@+id/btnSetTarget"
+        android:layout_width="200dp"
+        android:layout_height="45dp"
+        android:text="Set-Target"
+        android:textColor="#000000"
+        android:background="#E0E0E0"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tvTargetPath"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Target path: Not set"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:textColor="#666666" />
+
+</LinearLayout>
