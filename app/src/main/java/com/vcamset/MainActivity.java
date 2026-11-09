@@ -136,26 +136,24 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
     }
 
-private void showVideoPreview(Uri sourceUri) {
-    try {
-        String sourceFilePath = getRealFilePathFromUri(sourceUri);
-        if (sourceFilePath != null && new File(sourceFilePath).exists()) {
-            Bitmap thumbnail = ThumbnailUtils.createVideoThumbnail(sourceFilePath, MediaStore.Images.Thumbnails.MINI_KIND);
-            if (thumbnail != null) {
-                ivVideoPreview.setImageBitmap(thumbnail);
-                ivVideoPreview.setVisibility(View.VISIBLE);
-                Toast.holen(this, "Thumbnail uspešno učitan!", Toast.LENGTH_SHORT).show();
-            } else {
-                // Ako ThumbnailUtils omane, stavljamo placeholder sliku ili obaveštenje da je fajl prepoznat
-                ivVideoPreview.setVisibility(View.VISIBLE);
-                Toast.makeText(this, "Izabran video (preview nije podržan za ovaj format)", Toast.LENGTH_SHORT).show();
+    private void showVideoPreview(Uri sourceUri) {
+        try {
+            String sourceFilePath = getRealFilePathFromUri(sourceUri);
+            if (sourceFilePath != null && new File(sourceFilePath).exists()) {
+                Bitmap thumbnail = ThumbnailUtils.createVideoThumbnail(sourceFilePath, MediaStore.Images.Thumbnails.MINI_KIND);
+                if (thumbnail != null) {
+                    ivVideoPreview.setImageBitmap(thumbnail);
+                    ivVideoPreview.setVisibility(View.VISIBLE);
+                } else {
+                    ivVideoPreview.setVisibility(View.GONE);
+                    Toast.makeText(this, "Preview nije podržan za ovaj video format", Toast.LENGTH_SHORT).show();
+                }
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            ivVideoPreview.setVisibility(View.GONE);
         }
-    } catch (Exception e) {
-        e.printStackTrace();
-        Toast.makeText(this, "Greška preview-a: " + e.getMessage(), Toast.LENGTH_SHORT).show();
     }
-}
 
     private void processAndReplaceVcamFile(Uri sourceUri) {
         try {
