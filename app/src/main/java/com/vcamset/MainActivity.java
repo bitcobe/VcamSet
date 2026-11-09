@@ -10,11 +10,8 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 public class MainActivity extends Activity {
 
@@ -46,7 +43,7 @@ public class MainActivity extends Activity {
         loadSavedPaths();
         updateUIState();
 
-        // Dugme "Load" otvara fajl menadžer u definisanom Source folderu ako je moguće
+        // Dugme "Load" otvara birač MP4 fajlova
         btnLoad.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -96,14 +93,13 @@ public class MainActivity extends Activity {
         boolean isReady = !sourcePath.isEmpty() && !targetPath.isEmpty();
         btnLoad.setEnabled(isReady);
         if (isReady) {
-            btnLoad.setBackgroundColor(0xFF2196F3); // Plava
+            btnLoad.setBackgroundColor(0xFF2196F3); // Plava boja kad je aktivno
         } else {
-            btnLoad.setBackgroundColor(0xFFBDBDBD); // Siva kad je onemogućeno
+            btnLoad.setBackgroundColor(0xFFBDBDBD); // Siva boja kad je onemogućeno
         }
     }
 
     private void openFolderPicker(int requestCode) {
-        // Na Androidu 7.1 koristimo standardni file/folder intent ili opšti get content
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("*/*");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -131,8 +127,7 @@ public class MainActivity extends Activity {
             Uri uri = data.getData();
             if (uri != null) {
                 if (requestCode == REQUEST_CODE_SELECT_SOURCE_DIR) {
-                    // Ekstraktujemo folder putanju iz URI-ja ili koristimo realni fajl path ako je dostupan
-                    String path = getPathFromUri(uri);
+                    String path = getRealFilePathFromUri(uri);
                     if (path != null) {
                         File f = new File(path);
                         sourcePath = f.isDirectory() ? f.getAbsolutePath() : f.getParent();
@@ -143,7 +138,7 @@ public class MainActivity extends Activity {
                     savePaths();
                     updateUIState();
                 } else if (requestCode == REQUEST_CODE_SELECT_TARGET_DIR) {
-                    String path = getPathFromUri(uri);
+                    String path = getRealFilePathFromUri(uri);
                     if (path != null) {
                         File f = new File(path);
                         targetPath = f.isDirectory() ? f.getAbsolutePath() : f.getParent();
@@ -168,43 +163,63 @@ public class MainActivity extends Activity {
                 return;
             }
 
+            String sourceFilePath = getRealFilePathFromUri(sourceUri);
+            if (sourceFilePath == null || !new File(sourceFilePath).exists()) {
+                Toast.makeText(this, "Ne mogu da pronađem izvorni fajl!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             File targetDir = new File(targetPath);
             if (!targetDir.exists()) {
-                targetDir.mkdirs();
+                executeRootCommand("mkdir -p '" + targetDir.getAbsolutePath() + "'");
             }
 
             File destinationFile = new File(targetDir, "virtual.mp4");
 
-            InputStream inputStream = getContentResolver().openInputStream(sourceUri);
-            OutputStream outputStream = new FileOutputStream(destinationFile);
+            // Izvršavanje root kopiranja sa -f (force)
+            String command = "cp -f '" + sourceFilePath + "' '" + destinationFile.getAbsolutePath() + "'";
+            boolean success = executeRootCommand(command);
 
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = inputStream.read(buffer)) > 0) {
-                outputStream.write(buffer, 0, length);
+            if (success && destinationFile.exists()) {
+                executeRootCommand("chmod 666 '" + destinationFile.getAbsolutePath() + "'");
+                Toast.makeText(this, "Uspešno zamenjen virtual.mp4 preko roota!", Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, "Greška: Root kopiranje nije uspelo.", Toast.LENGTH_LONG).show();
             }
 
-            outputStream.flush();
-            outputStream.close();
-            inputStream.close();
-
-            Toast.makeText(this, "Uspešno zamenjen virtual.mp4!", Toast.LENGTH_LONG).show();
-
         } catch (Exception e) {
-            Toast.makeText(this, "Greška pri kopiranju fajla: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Greška: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
-    private String getPathFromUri(Uri uri) {
-        // Jednostavna dekodizacija standardnih fajl putanja na starijim Android sistemima
+    private boolean executeRootCommand(String command) {
+        try {
+            Process process = Runtime.getRuntime().exec("su");
+            DataOutputStream outputStream = new DataOutputStream(process.getOutputStream());
+            outputStream.writeBytes(command + "\n");
+            outputStream.writeBytes("exit\n");
+            outputStream.flush();
+            outputStream.close();
+            
+            process.waitFor();
+            return process.exitValue() == 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private String getRealFilePathFromUri(Uri uri) {
         String path = uri.getPath();
-        if (path != null && path.contains(":")) {
-            // Primer: /document/primary:Download/video.mp4 -> /storage/emulated/0/Download/video.mp4
-            String[] parts = path.split(":");
-            if (parts.length > 1 && parts[0].contains("primary")) {
-                return android.os.Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + parts[1];
+        if (path != null) {
+            if (path.startsWith("/external_files/")) {
+                return path.replace("/external_files/", "/storage/emulated/0/");
+            } else if (path.contains("/document/primary:")) {
+                return path.replace("/document/primary:", "/storage/emulated/0/");
+            } else if (new File(path).exists()) {
+                return path;
             }
         }
-        return path;
+        return uri.getPath();
     }
 }
