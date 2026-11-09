@@ -3,10 +3,14 @@ package com.vcamset;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -23,6 +27,7 @@ public class MainActivity extends Activity {
 
     private Button btnLoad, btnSetTarget;
     private TextView tvTargetPath;
+    private ImageView ivVideoPreview;
 
     private String targetPath = "";
 
@@ -34,11 +39,12 @@ public class MainActivity extends Activity {
         btnLoad = (Button) findViewById(R.id.btnLoad);
         btnSetTarget = (Button) findViewById(R.id.btnSetTarget);
         tvTargetPath = (TextView) findViewById(R.id.tvTargetPath);
+        ivVideoPreview = (ImageView) findViewById(R.id.ivVideoPreview);
 
         loadSavedPath();
         updateUIState();
 
-        // Dugme "Load" otvara birač MP4 fajlova bilo gde u sistemu
+        // Dugme "Load" otvara birač MP4 fajlova
         btnLoad.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -120,11 +126,33 @@ public class MainActivity extends Activity {
                     savePath();
                     updateUIState();
                 } else if (requestCode == REQUEST_CODE_SELECT_MP4) {
+                    // Prikazujemo preview sličicu izabranog videa
+                    showVideoPreview(uri);
+                    // Vršimo kopiranje u virtual.mp4 preko roota
                     processAndReplaceVcamFile(uri);
                 }
             }
         }
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void showVideoPreview(Uri sourceUri) {
+        try {
+            String sourceFilePath = getRealFilePathFromUri(sourceUri);
+            if (sourceFilePath != null && new File(sourceFilePath).exists()) {
+                // Generišemo mini-sličicu (Thumbnail) direktno iz video fajla
+                Bitmap thumbnail = ThumbnailUtils.createVideoThumbnail(sourceFilePath, MediaStore.Images.Thumbnails.MINI_KIND);
+                if (thumbnail != null) {
+                    ivVideoPreview.setImageBitmap(thumbnail);
+                    ivVideoPreview.setVisibility(View.VISIBLE);
+                } else {
+                    ivVideoPreview.setVisibility(View.GONE);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            ivVideoPreview.setVisibility(View.GONE);
+        }
     }
 
     private void processAndReplaceVcamFile(Uri sourceUri) {
