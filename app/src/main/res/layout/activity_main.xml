@@ -16,7 +16,17 @@
         android:background="#2196F3"
         android:textSize="18sp"
         android:enabled="false"
-        android:layout_marginBottom="32dp" />
+        android:layout_marginBottom="16dp" />
+
+    <!-- Preview sličica izabranog video fajla -->
+    <ImageView
+        android:id="@+id/ivVideoPreview"
+        android:layout_width="200dp"
+        android:layout_height="120dp"
+        android:scaleType="centerCrop"
+        android:background="#DDDDDD"
+        android:visibility="gone"
+        android:layout_marginBottom="24dp" />
 
     <!-- Sekcija za Target Folder (Vcam folder gde se snima virtual.mp4) -->
     <Button
