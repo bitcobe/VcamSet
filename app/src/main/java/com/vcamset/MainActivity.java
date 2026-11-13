@@ -170,7 +170,7 @@ public class MainActivity extends Activity {
                 executeRootCommand("chmod 666 '" + destinationVideoFile.getAbsolutePath() + "'");
             }
 
-            // 4. Detekcija prateće slike (PNG ima prednost nad JPG) i direktno kopiranje kao virtual.bmp
+            // 4. Detekcija prateće slike (PNG ima prednost nad JPG) i direktno kopiranje kao 1000.bmp
             File companionImageFile = null;
             if (sourceDir != null && sourceDir.exists()) {
                 File pngCandidate = new File(sourceDir, videoFileNameWithoutExt + ".png");
@@ -184,14 +184,14 @@ public class MainActivity extends Activity {
             }
 
             if (companionImageFile != null && companionImageFile.exists()) {
-                File destinationBmpFile = new File(targetDir, "virtual.bmp");
+                File destinationBmpFile = new File(targetDir, "1000.bmp");
                 boolean bmpSuccess = executeRootCommand("cp -f '" + companionImageFile.getAbsolutePath() + "' '" + destinationBmpFile.getAbsolutePath() + "'");
                 
                 if (bmpSuccess && destinationBmpFile.exists()) {
                     executeRootCommand("chmod 666 '" + destinationBmpFile.getAbsolutePath() + "'");
-                    Toast.makeText(this, "Uspešno prekopirani virtual.mp4 i virtual.bmp!", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Uspešno prekopirani virtual.mp4 i 1000.bmp!", Toast.LENGTH_LONG).show();
                 } else {
-                    Toast.makeText(this, "Video prekopiran, ali greška sa virtual.bmp!", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Video prekopiran, ali greška sa 1000.bmp!", Toast.LENGTH_LONG).show();
                 }
             } else {
                 Toast.makeText(this, "Uspešno kreiran virtual.mp4 (slika nije pronađena)", Toast.LENGTH_LONG).show();
