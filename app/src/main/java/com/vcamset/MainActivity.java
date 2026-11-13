@@ -126,58 +126,100 @@ public class MainActivity extends Activity {
                     savePath();
                     updateUIState();
                 } else if (requestCode == REQUEST_CODE_SELECT_MP4) {
-                    processAndReplaceVcamFile(uri);
+                    processAndReplaceVcamFiles(uri);
                 }
             }
         }
         super.onActivityResult(requestCode, resultCode, data);
     }
 
-    private void processAndReplaceVcamFile(Uri sourceUri) {
+    private void processAndReplaceVcamFiles(Uri sourceUri) {
         try {
             if (targetPath.isEmpty()) {
                 Toast.makeText(this, "Target folder nije podešen!", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // Prvo kopiramo izabrani fajl u privremeni lokalni keš fajl aplikacije da izbegnemo URI restrikcije
-            File cacheFile = new File(getCacheDir(), "temp_selected.mp4");
-            InputStream inputStream = getContentResolver().openInputStream(sourceUri);
-            OutputStream outputStream = new FileOutputStream(cacheFile);
-
-            byte[] buffer = new byte[4096];
-            int length;
-            while ((length = inputStream.read(buffer)) > 0) {
-                outputStream.write(buffer, 0, length);
+            String sourceFilePath = getRealFilePathFromUri(sourceUri);
+            if (sourceFilePath == null || !new File(sourceFilePath).exists()) {
+                Toast.makeText(this, "Ne mogu da pronađem izabrani MP4 fajl!", Toast.LENGTH_SHORT).show();
+                return;
             }
-            outputStream.flush();
-            outputStream.close();
-            inputStream.close();
 
-            // Generišemo preview iz lokalnog keš fajla (100% radi na svim uređajima)
-            showVideoPreviewFromCache(cacheFile);
+            File selectedVideoFile = new File(sourceFilePath);
+            File sourceDir = selectedVideoFile.getParentFile();
+            String videoFileNameWithoutExt = getFileNameWithoutExtension(selectedVideoFile.getName());
 
-            // Sada vršimo kopiranje u krajnji target folder pod imenom virtual.mp4 preko roota
+            // 1. Kopiramo fajl u privremeni lokalni keš aplikacije radi stabilnosti
+            File cacheVideoFile = new File(getCacheDir(), "temp_selected.mp4");
+            copyUriToFile(sourceUri, cacheVideoFile);
+
+            // 2. Generišemo preview
+            showVideoPreviewFromCache(cacheVideoFile);
+
+            // 3. Kopiramo virtual.mp4 u target folder preko roota
             File targetDir = new File(targetPath);
             if (!targetDir.exists()) {
                 executeRootCommand("mkdir -p '" + targetDir.getAbsolutePath() + "'");
             }
 
-            File destinationFile = new File(targetDir, "virtual.mp4");
-            String command = "cp -f '" + cacheFile.getAbsolutePath() + "' '" + destinationFile.getAbsolutePath() + "'";
-            boolean success = executeRootCommand(command);
+            File destinationVideoFile = new File(targetDir, "virtual.mp4");
+            boolean videoSuccess = executeRootCommand("cp -f '" + cacheVideoFile.getAbsolutePath() + "' '" + destinationVideoFile.getAbsolutePath() + "'");
 
-            if (success && destinationFile.exists()) {
-                executeRootCommand("chmod 666 '" + destinationFile.getAbsolutePath() + "'");
-                Toast.makeText(this, "Uspešno kreiran virtual.mp4 u target folderu!", Toast.LENGTH_LONG).show();
+            if (videoSuccess && destinationVideoFile.exists()) {
+                executeRootCommand("chmod 666 '" + destinationVideoFile.getAbsolutePath() + "'");
+            }
+
+            // 4. Detekcija prateće slike (PNG ima prednost nad JPG) i direktno kopiranje kao virtual.bmp
+            File companionImageFile = null;
+            if (sourceDir != null && sourceDir.exists()) {
+                File pngCandidate = new File(sourceDir, videoFileNameWithoutExt + ".png");
+                File jpgCandidate = new File(sourceDir, videoFileNameWithoutExt + ".jpg");
+
+                if (pngCandidate.exists()) {
+                    companionImageFile = pngCandidate;
+                } else if (jpgCandidate.exists()) {
+                    companionImageFile = jpgCandidate;
+                }
+            }
+
+            if (companionImageFile != null && companionImageFile.exists()) {
+                File destinationBmpFile = new File(targetDir, "virtual.bmp");
+                boolean bmpSuccess = executeRootCommand("cp -f '" + companionImageFile.getAbsolutePath() + "' '" + destinationBmpFile.getAbsolutePath() + "'");
+                
+                if (bmpSuccess && destinationBmpFile.exists()) {
+                    executeRootCommand("chmod 666 '" + destinationBmpFile.getAbsolutePath() + "'");
+                    Toast.makeText(this, "Uspešno prekopirani virtual.mp4 i virtual.bmp!", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "Video prekopiran, ali greška sa virtual.bmp!", Toast.LENGTH_LONG).show();
+                }
             } else {
-                Toast.makeText(this, "Greška: Root kopiranje fajla nije uspelo.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Uspešno kreiran virtual.mp4 (slika nije pronađena)", Toast.LENGTH_LONG).show();
             }
 
         } catch (Exception e) {
             e.printStackTrace();
             Toast.makeText(this, "Greška: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void copyUriToFile(Uri uri, File destination) throws Exception {
+        InputStream inputStream = getContentResolver().openInputStream(uri);
+        OutputStream outputStream = new FileOutputStream(destination);
+        byte[] buffer = new byte[4096];
+        int length;
+        while ((length = inputStream.read(buffer)) > 0) {
+            outputStream.write(buffer, 0, length);
+        }
+        outputStream.flush();
+        outputStream.close();
+        inputStream.close();
+    }
+
+    private String getFileNameWithoutExtension(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex == -1) return fileName;
+        return fileName.substring(0, dotIndex);
     }
 
     private void showVideoPreviewFromCache(File file) {
